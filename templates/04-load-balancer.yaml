@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  Creates a public Application Load Balancer across two Availability Zones
+  to distribute HTTP traffic to private application servers.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: Oyama-Capstone
+
+Resources:
+
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${EnvironmentName}-ALB'
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      SecurityGroups:
+        - Fn::ImportValue:
+            Fn::Sub: '${EnvironmentName}-ALB-SG-ID'
+      Subnets:
+        - Fn::ImportValue:
+            Fn::Sub: '${EnvironmentName}-Public-Subnet-A'
+        - Fn::ImportValue:
+            Fn::Sub: '${EnvironmentName}-Public-Subnet-B'
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-ALB'
+
+  # Target Group for private EC2 application servers
+  ApplicationTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${EnvironmentName}-Targets'
+      Protocol: HTTP
+      Port: 80
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: '${EnvironmentName}-VPC-ID'
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: traffic-port
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: '200'
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      HealthCheckIntervalSeconds: 30
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Target-Group'
+
+  # HTTP listener
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApplicationTargetGroup
+
+Outputs:
+
+  LoadBalancerDNS:
+    Description: Public DNS name of the Application Load Balancer
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub '${EnvironmentName}-ALB-DNS'
+
+  LoadBalancerArn:
+    Description: ARN of the Application Load Balancer
+    Value: !Ref ApplicationLoadBalancer
+
+  TargetGroupArn:
+    Description: ARN of the application target group
+    Value: !Ref ApplicationTargetGroup
+    Export:
+      Name: !Sub '${EnvironmentName}-Target-Group-ARN'
+

@@ -1,0 +1,53 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Auto Scaling Group for the AWS Capstone PHP application
+
+Resources:
+
+  CapstoneAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: Oyama-Capstone-ASG
+
+      MinSize: '2'
+      MaxSize: '4'
+      DesiredCapacity: '2'
+
+      DefaultInstanceWarmup: 180
+
+      VPCZoneIdentifier:
+        - subnet-034ae22a8ef7bcc0e
+        - subnet-0534f87b2c4c5eabc
+
+      TargetGroupARNs:
+        - arn:aws:elasticloadbalancing:us-east-1:544611252083:targetgroup/Oyama-Capstone-Targets/bb4bf4c514b3cdd2
+
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+
+      LaunchTemplate:
+        LaunchTemplateId: lt-0fc85b6d56ce1b139
+        Version: '1'
+
+      Tags:
+        - Key: Name
+          Value: Oyama-Capstone-Web-Server
+          PropagateAtLaunch: true
+
+  CapstoneScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref CapstoneAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50.0
+
+Outputs:
+
+  AutoScalingGroupName:
+    Description: Name of the Capstone Auto Scaling Group
+    Value: !Ref CapstoneAutoScalingGroup

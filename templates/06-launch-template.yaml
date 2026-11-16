@@ -1,0 +1,69 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: AWS Capstone EC2 Launch Template for private PHP application servers
+
+Resources:
+  CapstoneLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: Oyama-Capstone-Launch-Template
+
+      LaunchTemplateData:
+        ImageId: ami-0b71756f4d851f798
+        InstanceType: t2.micro
+
+        IamInstanceProfile:
+          Name: Oyama-Capstone-EC2-Instance-Profile
+
+        SecurityGroupIds:
+          - sg-03fd73c1ae81ae2b3
+
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpTokens: required
+
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 8
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: Oyama-Capstone-App-Server
+
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -eux
+
+            exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+            dnf update -y
+            dnf install -y httpd php php-mysqli unzip awscli-2
+
+            mkdir -p /var/www/html
+
+            aws s3 cp s3://oyama-capstone-app-544611252083/capstone-application.zip /tmp/capstone-application.zip --region us-east-1
+
+            unzip -o /tmp/capstone-application.zip -d /var/www/html/
+
+            chown -R apache:apache /var/www/html
+            chmod -R 755 /var/www/html
+
+            systemctl enable httpd
+            systemctl start httpd
+
+Outputs:
+  LaunchTemplateId:
+    Description: EC2 launch template ID
+    Value: !Ref CapstoneLaunchTemplate
+
+  LaunchTemplateName:
+    Description: EC2 launch template name
+    Value: Oyama-Capstone-Launch-Template

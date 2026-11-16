@@ -1,0 +1,62 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM role and instance profile for Capstone EC2 application servers
+
+Resources:
+  CapstoneEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: Oyama-Capstone-EC2-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+      Policies:
+        - PolicyName: CapstoneReadDatabaseSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - arn:aws:secretsmanager:us-east-1:544611252083:secret:Oyama-Capstone-Database-Credentials-JF3wA0
+
+        - PolicyName: CapstoneDownloadApplication
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - arn:aws:s3:::oyama-capstone-app-544611252083/capstone-application.zip
+
+  CapstoneEC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: Oyama-Capstone-EC2-Instance-Profile
+      Roles:
+        - !Ref CapstoneEC2Role
+
+Outputs:
+  EC2RoleArn:
+    Description: ARN of the EC2 IAM role
+    Value: !GetAtt CapstoneEC2Role.Arn
+
+  InstanceProfileName:
+    Description: Name of the EC2 instance profile
+    Value: !Ref CapstoneEC2InstanceProfile
+
+  InstanceProfileArn:
+    Description: ARN of the EC2 instance profile
+    Value: !GetAtt CapstoneEC2InstanceProfile.Arn

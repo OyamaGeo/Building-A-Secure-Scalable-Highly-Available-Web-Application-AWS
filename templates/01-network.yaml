@@ -1,0 +1,250 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  Networking infrastructure for the AWS Academy Cloud Architecting Capstone Project.
+  Creates a VPC with public, private application, and private database subnets
+  across two Availability Zones.
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Default: Capstone
+    Description: Name used to identify project resources.
+
+Resources:
+
+  # VPC
+  CapstoneVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-VPC'
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-IGW'
+
+  AttachInternetGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public subnets
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Public-A'
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Public-B'
+
+  # Private application subnets
+  AppSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-App-Private-A'
+
+  AppSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      CidrBlock: 10.0.12.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-App-Private-B'
+
+  # Private database subnets
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      CidrBlock: 10.0.21.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Database-Private-A'
+
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      CidrBlock: 10.0.22.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Database-Private-B'
+
+  # Public route table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Public-RT'
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachInternetGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  # Elastic IP and NAT Gateway
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachInternetGateway
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-NAT-EIP'
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-NAT'
+
+  # Private application route table
+  AppPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-App-Private-RT'
+
+  AppPrivateInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AppPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  AppSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AppSubnetA
+      RouteTableId: !Ref AppPrivateRouteTable
+
+  AppSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AppSubnetB
+      RouteTableId: !Ref AppPrivateRouteTable
+
+  # Isolated database route table
+  DatabaseRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CapstoneVPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Database-Private-RT'
+
+  DatabaseSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DatabaseSubnetA
+      RouteTableId: !Ref DatabaseRouteTable
+
+  DatabaseSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DatabaseSubnetB
+      RouteTableId: !Ref DatabaseRouteTable
+
+Outputs:
+
+  VPCId:
+    Description: ID of the Capstone VPC
+    Value: !Ref CapstoneVPC
+    Export:
+      Name: !Sub '${EnvironmentName}-VPC-ID'
+
+  PublicSubnetAId:
+    Description: Public subnet in Availability Zone A
+    Value: !Ref PublicSubnetA
+    Export:
+      Name: !Sub '${EnvironmentName}-Public-Subnet-A'
+
+  PublicSubnetBId:
+    Description: Public subnet in Availability Zone B
+    Value: !Ref PublicSubnetB
+    Export:
+      Name: !Sub '${EnvironmentName}-Public-Subnet-B'
+
+  AppSubnetAId:
+    Description: Private application subnet in Availability Zone A
+    Value: !Ref AppSubnetA
+    Export:
+      Name: !Sub '${EnvironmentName}-App-Subnet-A'
+
+  AppSubnetBId:
+    Description: Private application subnet in Availability Zone B
+    Value: !Ref AppSubnetB
+    Export:
+      Name: !Sub '${EnvironmentName}-App-Subnet-B'
+
+  DatabaseSubnetAId:
+    Description: Private database subnet in Availability Zone A
+    Value: !Ref DatabaseSubnetA
+    Export:
+      Name: !Sub '${EnvironmentName}-DB-Subnet-A'
+
+  DatabaseSubnetBId:
+    Description: Private database subnet in Availability Zone B
+    Value: !Ref DatabaseSubnetB
+    Export:
+      Name: !Sub '${EnvironmentName}-DB-Subnet-B'

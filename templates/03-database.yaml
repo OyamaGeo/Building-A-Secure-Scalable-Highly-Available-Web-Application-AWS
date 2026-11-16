@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  Creates a private Amazon RDS MySQL database and stores
+  database credentials securely in AWS Secrets Manager.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: Oyama-Capstone
+
+Resources:
+
+  # Generate and store database credentials
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-Database-Credentials'
+      Description: Credentials for the Capstone MySQL database
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"admin"}'
+        GenerateStringKey: password
+        PasswordLength: 20
+        ExcludePunctuation: true
+
+  # Private database subnet group
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for Capstone MySQL database
+      SubnetIds:
+        - Fn::ImportValue:
+            Fn::Sub: '${EnvironmentName}-DB-Subnet-A'
+        - Fn::ImportValue:
+            Fn::Sub: '${EnvironmentName}-DB-Subnet-B'
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Database-Subnet-Group'
+
+  # MySQL database
+  MySQLDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub '${EnvironmentName}-MySQL'
+      Engine: mysql
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: countries
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DatabaseSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups:
+        - Fn::ImportValue:
+            Fn::Sub: '${EnvironmentName}-Database-SG-ID'
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 0
+      AutoMinorVersionUpgrade: true
+      DeletionProtection: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-MySQL-Database'
+
+Outputs:
+
+  DatabaseEndpoint:
+    Description: RDS MySQL endpoint address
+    Value: !GetAtt MySQLDatabase.Endpoint.Address
+    Export:
+      Name: !Sub '${EnvironmentName}-Database-Endpoint'
+
+  DatabasePort:
+    Description: RDS MySQL port
+    Value: !GetAtt MySQLDatabase.Endpoint.Port
+
+  DatabaseName:
+    Description: Initial database name
+    Value: countries
+
+  DatabaseSecretArn:
+    Description: ARN of the Secrets Manager database credentials
+    Value: !Ref DatabaseSecret
+    Export:
+      Name: !Sub '${EnvironmentName}-Database-Secret-ARN'
