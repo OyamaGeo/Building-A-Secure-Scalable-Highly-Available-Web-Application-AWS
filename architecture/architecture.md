@@ -1,6 +1,6 @@
 ## Architecture Diagram
 
-The solution is deployed in one AWS Region using the provisioned Capstone VPC.
+The solution is deployed in one AWS Region using the provisioned VPC.
 
 ```mermaid
 flowchart TB
