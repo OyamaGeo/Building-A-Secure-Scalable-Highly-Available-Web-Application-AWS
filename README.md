@@ -146,7 +146,7 @@ This Capstone Project provided practical experience in designing and implementin
 
 It demonstrates how a traditional single-server application can be redesigned into a more resilient cloud-based architecture using managed AWS services.
 
-**Project:** AWS Academy Cloud Architecting Capstone Project  
+**Project:**  Building a Secure, Scalable, and Highly Available Web Application on AWS
 **AWS Region:** us-east-1 (Northern Virginia)  
 **Application:** PHP  
 **Database:** MySQL  
